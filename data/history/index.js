@@ -1,1 +1,1 @@
-window.HISTORY_DAYS = ["2026-11-21"];
+window.HISTORY_DAYS = ["2026-11-21","2026-11-22"];
