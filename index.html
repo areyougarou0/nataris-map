@@ -1,0 +1,832 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nataris Tracker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: GetterMap-style square canvas on the left, alliance / artifact legend panel on the right; stacks below 900px. Single dark look by design. */
+:root{
+  --bg:#0c1a0e;
+  --panel:#11261a;
+  --panel-2:#16301f;
+  --line:#2a4733;
+  --fg:#e3ede0;
+  --muted:#93ab95;
+  --map:#16441b;
+  --axis:#e5262c;
+  --gold:#ffd23a;
+  --silver:#cfd8ff;
+  --bronze:#d68a4c;
+  --ui:"Barlow Semi Condensed","Arial Narrow",Tahoma,Verdana,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--ui);font-size:15px;line-height:1.35}
+.wrap{margin:0 auto;padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:12px}
+h1{margin:0;font-size:1.45rem;line-height:1.15;font-weight:700;letter-spacing:.01em;text-wrap:balance}
+h1 span{color:var(--muted);font-weight:500}
+.meta{font-family:var(--mono);font-size:.78rem;color:var(--muted)}
+.layout{display:flex;gap:14px;align-items:flex-start;justify-content:center}
+.mapcol{flex:0 1 max(340px,calc(100vh - 26px));min-width:0}
+@media (max-width:900px){.layout{flex-direction:column;align-items:stretch}.mapcol{flex:none;width:100%}}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%}
+.toolbar .sp{flex:1}
+button,.tog{font-family:var(--ui);font-size:.9rem;font-weight:600;color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:5px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+button:hover,.tog:hover{border-color:#4b7a58;background:#1c3b26}
+button:focus-visible,.tog:focus-within,input:focus-visible,summary:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.tog input{margin:0;accent-color:#5fbf6a}
+.coord{position:absolute;left:8px;bottom:6px;font-family:var(--mono);font-size:.82rem;color:#e9f2e6;text-shadow:0 1px 2px #000;font-variant-numeric:tabular-nums;pointer-events:none}
+.mapctl{position:absolute;top:18px;right:8px;display:flex;gap:4px;z-index:2}
+.mapctl button{padding:1px 10px;font-size:1.1rem;background:rgba(10,22,12,.82)}
+.mapbox{position:relative;width:100%;aspect-ratio:1;max-width:100%;background:var(--map);border:1px solid #3c6b44;box-shadow:0 0 0 3px #0a140b;touch-action:none;user-select:none;overflow:hidden;cursor:grab}
+.mapbox.drag{cursor:grabbing}
+canvas{display:block;width:100%;height:100%}
+.brand{position:absolute;right:8px;bottom:6px;text-align:right;font-size:.78rem;line-height:1.2;pointer-events:none;color:#e9f2e6;text-shadow:0 1px 2px #000}
+.brand b{display:block;font-size:.9rem;font-weight:600}
+.tip{position:absolute;pointer-events:none;background:rgba(8,18,10,.94);border:1px solid #3f6b49;border-radius:3px;padding:7px 9px;font-size:.86rem;min-width:180px;max-width:260px;box-shadow:0 4px 14px rgba(0,0,0,.5);z-index:3}
+.tip .pn{font-weight:700;font-size:1rem;display:flex;align-items:center;gap:6px}
+.tip .row{display:flex;justify-content:space-between;gap:10px;color:var(--muted)}
+.tip .row b{color:var(--fg);font-weight:500;font-family:var(--mono);font-size:.8rem;font-variant-numeric:tabular-nums}
+.tip .art{margin-top:5px;padding-top:5px;border-top:1px solid var(--line)}
+.sw{width:11px;height:11px;flex:none;display:inline-block;border:1px solid rgba(255,255,255,.35)}
+.panel{flex:0 0 350px;background:var(--panel);border:1px solid var(--line);border-radius:4px;max-height:max(340px,calc(100vh - 24px));overflow:auto;min-width:0}
+.head{display:flex;flex-direction:column;gap:8px}
+@media (max-width:900px){.panel{max-height:none;flex:none}}
+.sec{padding:10px 12px;border-bottom:1px solid var(--line)}
+.sec:last-child{border-bottom:0}
+.sec h2{margin:0 0 8px;font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+details.al{border-top:1px solid #1f3a27}
+details.al:first-of-type{border-top:0}
+details.al>summary{list-style:none;display:grid;grid-template-columns:auto auto 1fr auto;gap:8px;align-items:center;padding:7px 0;cursor:pointer}
+details.al>summary::-webkit-details-marker{display:none}
+.al-name{font-weight:700;font-size:1.02rem;overflow-wrap:anywhere}
+.al-name small{font-weight:500;color:var(--muted);font-size:.8rem;margin-left:4px}
+.al-stats{font-family:var(--mono);font-size:.72rem;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;line-height:1.3}
+.al-note{font-size:.8rem;color:#e8c27a;margin:0 0 6px 26px}
+.chev{width:10px;color:var(--muted);transition:transform .15s}
+details[open] .chev{transform:rotate(90deg)}
+.players{display:flex;flex-direction:column;gap:1px;margin:0 0 8px 0}
+.pl{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 8px;align-items:start;padding:4px 6px;border-radius:3px}
+.pl:hover{background:#1d3d25}
+.pl.focus{background:#24452d;box-shadow:inset 2px 0 0 var(--gold)}
+.pl input{margin:3px 0 0;accent-color:#5fbf6a}
+.pl .nm{font-weight:600;background:none;border:0;padding:0;color:var(--fg);font-size:.95rem;text-align:left;cursor:pointer;display:inline}
+.pl .nm:hover{text-decoration:underline}
+.pl .sub{font-family:var(--mono);font-size:.7rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.pl .num{font-family:var(--mono);font-size:.75rem;text-align:right;color:var(--fg);font-variant-numeric:tabular-nums;line-height:1.25}
+.pl .num span{display:block;color:var(--muted);font-size:.68rem}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.chip{font-size:.72rem;font-weight:600;padding:1px 6px 1px 4px;border-radius:2px;background:#0d1f12;border:1px solid var(--line);display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.dia{width:8px;height:8px;transform:rotate(45deg);display:inline-block;flex:none}
+.t-Unique{background:var(--gold)}
+.t-Great{background:var(--silver)}
+.t-Small{background:var(--bronze)}
+.arts{display:flex;flex-direction:column;gap:2px}
+.arts{gap:8px}
+.artgrp{display:flex;flex-direction:column;gap:1px;border-left:3px solid var(--c);background:color-mix(in srgb,var(--c) 11%,transparent);border-radius:0 3px 3px 0}
+.artrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 8px;border-radius:0 3px 3px 0;background:none;border:0;color:var(--fg);text-align:left;width:100%;font-weight:400}
+.artrow:hover{background:color-mix(in srgb,var(--c) 22%,transparent)}
+.artrow .ah b{color:var(--c);font-weight:700}
+.neg{color:#ff8f8f}
+.artrow .an{font-weight:600;font-size:.92rem}
+.artrow .ah{font-size:.78rem;color:var(--muted)}
+.artrow .ac{font-family:var(--mono);font-size:.72rem;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.key{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.8rem;color:var(--muted)}
+.key span{display:inline-flex;align-items:center;gap:5px}
+.act-empty{color:var(--muted);font-size:.86rem;margin:4px 0 8px}
+.act-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.act-name{font-weight:700;font-size:1.15rem;display:flex;align-items:center;gap:6px}
+.act-sub{font-family:var(--mono);font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.seg{display:flex;gap:4px;margin:8px 0 2px;flex-wrap:wrap}
+.seg button{padding:2px 9px;font-size:.82rem}
+.seg button[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}
+.ch{margin-top:10px}
+.ch h3{margin:0 0 3px;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;display:flex;justify-content:space-between;gap:8px}
+.ch h3 b{font-family:var(--mono);font-weight:500;letter-spacing:0;text-transform:none;color:var(--fg)}
+.ch svg{display:block;overflow:visible}
+.ch svg text{font-family:var(--mono);font-size:9.5px;fill:var(--muted)}
+.crow{display:flex}
+.crow .gut{flex:none}
+.sc{flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;cursor:grab;scrollbar-width:thin;scrollbar-color:#2a4733 transparent;touch-action:pan-y}
+.sc.drag{cursor:grabbing}
+.hint{font-size:.74rem;color:var(--muted);margin-top:4px}
+.ctip{position:fixed;pointer-events:none;background:rgba(8,18,10,.96);border:1px solid #3f6b49;border-radius:3px;padding:5px 8px;font-size:.82rem;z-index:10;box-shadow:0 4px 14px rgba(0,0,0,.5);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctip b{font-family:var(--mono);font-weight:500}
+.ctip .m{color:var(--muted)}
+table.t10{width:100%;border-collapse:collapse;font-size:.86rem;margin-top:4px}
+table.t10 td{padding:3px 4px;border-top:1px solid #1f3a27}
+table.t10 td.r{font-family:var(--mono);font-size:.75rem;text-align:right;font-variant-numeric:tabular-nums}
+table.t10 td.d{font-family:var(--mono);font-size:.7rem;text-align:right;color:var(--gold);width:52px}
+.nmb{background:none;border:0;padding:0;color:var(--fg);font:inherit;font-weight:600;cursor:pointer}
+.nmb:hover{text-decoration:underline}
+.evs{display:flex;flex-direction:column;gap:2px;font-size:.84rem}
+.ev{display:grid;grid-template-columns:auto 1fr;gap:8px;padding:2px 0;border-top:1px solid #1f3a27}
+.ev .t{font-family:var(--mono);font-size:.7rem;color:var(--muted);padding-top:2px;font-variant-numeric:tabular-nums}
+.ev .k{color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.chev{transition:none}}
+</style>
+
+<div class="wrap">
+  <div class="layout">
+    <div class="mapcol">
+      <div class="mapbox" id="box">
+        <canvas id="map"></canvas>
+        <div class="mapctl">
+          <button id="zin" type="button" aria-label="Zoom in">+</button>
+          <button id="zout" type="button" aria-label="Zoom out">−</button>
+        </div>
+        <span class="coord" id="coord">( | )</span>
+        <div class="tip" id="tip" hidden></div>
+        <div class="brand"><b>Nataris</b>GetterMap style</div>
+      </div>
+    </div>
+
+    <aside class="panel">
+      <div class="sec head">
+        <h1>Nataris Tracker <span>· Round 8 · 7×</span></h1>
+        <div class="meta" id="meta">–</div>
+        <div class="toolbar">
+          <button id="zmid" type="button">Centre ±40</button>
+          <label class="tog"><input id="optLabels" type="checkbox" checked> Names</label>
+          <label class="tog"><input id="optArts" type="checkbox" checked> Artifacts</label>
+        </div>
+      </div>
+      <div class="sec" id="actsec" hidden>
+        <div id="activity"></div>
+      </div>
+      <div class="sec">
+        <h2>Top 10 of the week</h2>
+        <div class="seg" id="t10tabs"></div>
+        <div id="t10"></div>
+      </div>
+      <div class="sec">
+        <h2>Alliances</h2>
+        <div id="alliances"></div>
+      </div>
+      <div class="sec">
+        <h2>Recent changes</h2>
+        <div class="evs" id="events"></div>
+      </div>
+      <div class="sec">
+        <h2>Artifacts</h2>
+        <div class="key" style="margin-bottom:8px">
+          <span><i class="dia t-Unique"></i> Unique</span>
+          <span><i class="dia t-Great"></i> Great</span>
+          <span><i class="dia t-Small"></i> Small</span>
+          <span>B boots · T trainers · D diet · A architects · E eagles · P storage plan · F fool</span>
+        </div>
+        <p class="act-empty" id="noarts" hidden>None entered yet (data/artifacts.js).</p>
+        <div class="arts" id="arts"></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script src="data/meta.js"></script>
+<script src="data/alliances.js"></script>
+<script src="data/players.js"></script>
+<script src="data/artifacts.js"></script>
+<script src="data/top10.js"></script>
+<script src="data/events.js"></script>
+<script src="data/history/index.js"></script>
+<script>
+// ---------- DATA (written by export.py every scan) ----------
+const ALLIANCES = window.ALLIANCES || [];
+
+// [name, alliance id, tribe, villages: [name, x, y, pop, capital?], real tag (only for 'other'), pid, first_seen]
+const PLAYERS = window.PLAYERS || [];
+
+// Artifacts: maintained by hand in data/artifacts.js. Linked to villages by coordinates.
+// kind: B boots · T trainers · D diet · A architects · E eagles · P storage plan · F fool
+const BONUS = {
+  B:{Unique:'3× troop speed', Great:'1.5× troop speed', Small:'2× troop speed'},
+  T:{Unique:'50% faster training', Great:'25% faster training', Small:'50% faster training'},
+  D:{Unique:'50% less crop upkeep', Great:'25% less crop upkeep', Small:'50% less crop upkeep'},
+  A:{Unique:'5× stronger vs catapults', Great:'3× stronger vs catapults', Small:'4× stronger vs catapults'},
+  E:{Unique:'10× spy power', Great:'3× spy power', Small:'5× spy power'},
+  P:{Small:'Great Granary / Warehouse', Great:'Great Granary / Warehouse'},
+};
+const ART_NAMES = {
+  B:{Unique:'The unique titan boots', Great:'The great titan boots', Small:'The slight titan boots'},
+  T:{Unique:'The trainers unique talent', Great:'The trainers great talent', Small:'The trainers slight talent'},
+  D:{Unique:'Unique diet control', Great:'Great diet control', Small:'Slight diet control'},
+  A:{Unique:'The architects unique secret', Great:'The architects great secret', Small:'The architects slight secret'},
+  E:{Unique:'The eagles unique eyes', Great:'The eagles great eyes', Small:'The eagles slight eyes'},
+  P:{Small:'Slight storage masterplan', Great:'Great storage masterplan'},
+  F:{Unique:'Artefact of the unique fool', Small:'Artefact of the slight fool'},
+};
+// [x, y, kind, tier, scope, fool's current effect?, negative effect?]
+const ARTIFACTS = (window.ARTIFACTS_RAW || []).map(([x,y,kind,tier,scope,today,neg])=>({x,y,kind,tier,scope,neg:!!neg,
+  name:ART_NAMES[kind][tier],
+  bonus: today || BONUS[kind][tier]}));
+const KIND_SHORT = {B:'Titan boots', T:'Trainers', D:'Diet control', A:'Architects', E:'Eagles', P:'Storage plan', F:'Fool'};
+const TIER_ORDER = {Unique:0, Great:1, Small:2};
+const TIER_COLOR = {Unique:'#ffd23a', Great:'#cfd8ff', Small:'#d68a4c'};
+const TIER_SCALE = {Unique:3.3, Great:2.8, Small:2.3};
+
+// ---------- MODEL ----------
+const AL = Object.fromEntries(ALLIANCES.map(a=>[a.id,a]));
+const players = PLAYERS.map(([name,al,tribe,vs,tag,pid,first])=>({
+  name, al, tribe, tag, pid, first,
+  villages: vs.map(([vn,x,y,pop,cap])=>({name:vn,x,y,pop,cap:!!cap}))
+}));
+const allVillages = [];
+players.forEach(p=>p.villages.forEach(v=>{ v.player=p; allVillages.push(v); }));
+const vByCoord = new Map(allVillages.map(v=>[v.x+'|'+v.y, v]));
+ARTIFACTS.forEach(a=>{
+  const v = vByCoord.get(a.x+'|'+a.y);
+  a.village = v;
+  if(v){ v.art = a; (v.player.arts ||= []).push(a); }
+});
+players.forEach(p=>p.arts && p.arts.sort((a,b)=>TIER_ORDER[a.tier]-TIER_ORDER[b.tier]));
+players.forEach(p=>{ p.pop = p.villages.every(v=>v.pop!=null) ? p.villages.reduce((s,v)=>s+v.pop,0) : null; p.home = p.villages.find(v=>v.cap) || p.villages[0]; });
+const tagOf = p => p.tag || AL[p.al].tag;
+
+const state = { hiddenAl:new Set(), hiddenPl:new Set(), focus:null, hoverPl:null, hoverAl:null, hover:null, sel:null, labels:true, arts:true };
+function visible(p){ return !state.hiddenAl.has(p.al) && !state.hiddenPl.has(p.name); }
+function fmt(n){ return n==null?'–':n.toLocaleString('en-US'); }
+
+// ---------- CANVAS ----------
+const box = document.getElementById('box');
+const cv = document.getElementById('map');
+const ctx = cv.getContext('2d');
+const tip = document.getElementById('tip');
+const coordEl = document.getElementById('coord');
+let W=0,H=0,dpr=1;
+const view = {cx:0, cy:0, s:1, init:false};
+
+// Terrain texture: one pixel per field, seeded so it never changes
+const terrain = (()=>{
+  const c=document.createElement('canvas'); c.width=401; c.height=401;
+  const g=c.getContext('2d'); const img=g.createImageData(401,401);
+  let seed=1337; const rnd=()=>{ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; };
+  const blobs=[]; for(let i=0;i<260;i++) blobs.push([rnd()*401,rnd()*401,2+rnd()*9]);
+  const field=new Float32Array(401*401);
+  for(const [bx,by,r] of blobs){
+    const r2=r*r;
+    for(let y=Math.max(0,by-r|0);y<Math.min(401,by+r+1);y++) for(let x=Math.max(0,bx-r|0);x<Math.min(401,bx+r+1);x++){
+      const d=(x-bx)**2+(y-by)**2; if(d<r2) field[y*401+x]+= (1-d/r2)*0.6;
+    }
+  }
+  for(let i=0;i<401*401;i++){
+    const n=(rnd()-0.5)*7, f=Math.min(1,field[i]);
+    const speck = rnd()<0.035*f ? 18 : 0;
+    img.data[i*4]   = 22 + n + f*6 + speck*0.9;
+    img.data[i*4+1] = 66 + n + f*4 + speck*0.6;
+    img.data[i*4+2] = 26 + n + f*6 + speck*0.9;
+    img.data[i*4+3] = 255;
+  }
+  g.putImageData(img,0,0); return c;
+})();
+
+function minS(){ return Math.min(W,H)/403; }
+function clampView(){
+  view.s = Math.max(minS(), Math.min(70, view.s));
+  const hx = W/2/view.s, hy = H/2/view.s;
+  const lx = Math.max(0, 201 - hx), ly = Math.max(0, 201 - hy);
+  view.cx = Math.max(-lx, Math.min(lx, view.cx));
+  view.cy = Math.max(-ly, Math.min(ly, view.cy));
+}
+const toS = (x,y)=>[W/2+(x-view.cx)*view.s, H/2-(y-view.cy)*view.s];
+const toW = (sx,sy)=>[view.cx+(sx-W/2)/view.s, view.cy-(sy-H/2)/view.s];
+
+function fitData(){
+  if(!allVillages.length) return fitAll();
+  const xs=allVillages.map(v=>v.x), ys=allVillages.map(v=>v.y);
+  fitBox(Math.min(...xs),Math.max(...xs),Math.min(...ys),Math.max(...ys),12);
+}
+function fitAll(){ view.cx=0; view.cy=0; view.s=minS(); clampView(); }
+function fitBox(x0,x1,y0,y1,pad=8){
+  view.cx=(x0+x1)/2; view.cy=(y0+y1)/2;
+  view.s=Math.min(W,H)/(Math.max(x1-x0,y1-y0)+pad*2);
+  clampView();
+}
+function zoomAt(sx,sy,f){
+  const [wx,wy]=toW(sx,sy);
+  view.s*=f; view.s=Math.max(minS(),Math.min(70,view.s));
+  view.cx = wx-(sx-W/2)/view.s; view.cy = wy+(sy-H/2)/view.s;
+  clampView(); draw();
+}
+function vsize(){ return Math.max(4, view.s*0.86); }
+
+function draw(){
+  // who is highlighted: hovered player > hovered alliance > clicked player
+  const hi = state.hoverPl ? (p=>p.name===state.hoverPl)
+           : state.hoverAl ? (p=>p.al===state.hoverAl)
+           : state.focus   ? (p=>p.name===state.focus) : null;
+  const dimP = p => !!hi && !hi(p);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle='#0b1a0d'; ctx.fillRect(0,0,W,H);
+  // terrain
+  const [tx,ty]=toS(-200.5,200.5);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(terrain, tx, ty, 401*view.s, 401*view.s);
+
+  // grid
+  const [wx0,wy1]=toW(0,0), [wx1,wy0]=toW(W,H);
+  const minor = view.s>=5 ? 10 : 0;
+  ctx.lineWidth=1;
+  const line=(x0,y0,x1,y1)=>{ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();};
+  if(minor){
+    ctx.strokeStyle='rgba(255,255,255,0.06)';
+    for(let g=Math.ceil(wx0/minor)*minor; g<=wx1; g+=minor){ if(g%50) { const [sx]=toS(g,0); line(Math.round(sx)+.5,0,Math.round(sx)+.5,H);} }
+    for(let g=Math.ceil(wy0/minor)*minor; g<=wy1; g+=minor){ if(g%50) { const [,sy]=toS(0,g); line(0,Math.round(sy)+.5,W,Math.round(sy)+.5);} }
+  }
+  ctx.strokeStyle='rgba(160,220,160,0.22)';
+  for(let g=-200; g<=200; g+=50){ if(!g) continue;
+    const [sx]=toS(g,0); line(Math.round(sx)+.5,0,Math.round(sx)+.5,H);
+    const [,sy]=toS(0,g); line(0,Math.round(sy)+.5,W,Math.round(sy)+.5);
+  }
+  // axes
+  ctx.strokeStyle='#e5262c'; ctx.lineWidth=Math.max(2, Math.min(4, view.s*0.5));
+  const [ox,oy]=toS(0,0); line(ox,0,ox,H); line(0,oy,W,oy);
+
+  // edge labels
+  ctx.font='500 10px "IBM Plex Mono", monospace'; ctx.fillStyle='rgba(230,240,225,0.7)';
+  const step = view.s>=8 ? 10 : 50;
+  ctx.textBaseline='top'; ctx.textAlign='center';
+  for(let g=Math.ceil(wx0/step)*step; g<=wx1; g+=step){ const [sx]=toS(g,0); if(sx>14&&sx<W-14) ctx.fillText(g,sx,3); }
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  for(let g=Math.ceil(wy0/step)*step; g<=wy1; g+=step){ const [,sy]=toS(0,g); if(sy>14&&sy<H-14) ctx.fillText(g,3,sy); }
+
+  // villages
+  const sz=vsize(); const pad=sz*3;
+  const drawn=[];
+  for(const p of players){
+    if(!visible(p)) continue;
+    const a=AL[p.al];
+    const dim = dimP(p);
+    ctx.globalAlpha = dim ? 0.2 : 1;
+    for(const v of p.villages){
+      const [sx,sy]=toS(v.x,v.y);
+      if(sx<-pad||sy<-pad||sx>W+pad||sy>H+pad) continue;
+      drawn.push(v);
+      if(v.art && state.arts) continue;
+      ctx.fillStyle=a.color;
+      ctx.fillRect(sx-sz/2, sy-sz/2, sz, sz);
+      if(a.stroke){ ctx.strokeStyle=a.stroke; ctx.lineWidth=1; ctx.strokeRect(sx-sz/2+.5, sy-sz/2+.5, sz-1, sz-1); }
+      if(v.cap && view.s>=6){ ctx.fillStyle='rgba(0,0,0,.55)'; const c=sz*0.34; ctx.fillRect(sx-c/2,sy-c/2,c,c); }
+    }
+  }
+  ctx.globalAlpha=1;
+
+  // artifacts on top
+  if(state.arts){
+    for(const art of ARTIFACTS){
+      const v=art.village; if(!v || !visible(v.player)) continue;
+      const [sx,sy]=toS(v.x,v.y);
+      const dim = dimP(v.player);
+      ctx.globalAlpha = dim ? 0.25 : 1;
+      const d = Math.max(sz*TIER_SCALE[art.tier]*0.75, art.tier==='Unique'?15:art.tier==='Great'?13:11);
+      const r = d/2;
+      if(art.tier==='Unique'){
+        ctx.beginPath(); ctx.arc(sx,sy,r*1.45,0,Math.PI*2);
+        ctx.strokeStyle='rgba(255,210,58,.55)'; ctx.lineWidth=1.5; ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(sx,sy-r); ctx.lineTo(sx+r,sy); ctx.lineTo(sx,sy+r); ctx.lineTo(sx-r,sy); ctx.closePath();
+      ctx.fillStyle=AL[v.player.al].color; ctx.fill();
+      ctx.lineWidth=2.2; ctx.strokeStyle=TIER_COLOR[art.tier]; ctx.stroke();
+      if(d>=11){
+        ctx.font=`700 ${Math.round(d*0.52)}px "Barlow Semi Condensed", sans-serif`;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillStyle = v.player.al==='none' ? '#fff' : '#0b1a0d';
+        ctx.fillText(art.kind, sx, sy+0.5);
+      }
+    }
+    ctx.globalAlpha=1;
+  }
+
+  // labels at capitals (and artifact villages when zoomed in)
+  if(state.labels){
+    ctx.font='600 12px "Barlow Semi Condensed", sans-serif';
+    ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.lineJoin='round';
+    for(const p of players){
+      if(!visible(p)) continue;
+      if(dimP(p)) continue;
+      const cap=p.home;
+      const [sx,sy]=toS(cap.x,cap.y);
+      if(sx<-40||sy<-20||sx>W+10||sy>H+20) continue;
+      const off = (cap.art&&state.arts) ? 11 : sz/2+4;
+      ctx.lineWidth=3; ctx.strokeStyle='rgba(5,14,7,.85)'; ctx.strokeText(p.name, sx+off, sy);
+      ctx.fillStyle='#f3f8f0'; ctx.fillText(p.name, sx+off, sy);
+    }
+    if(view.s>=9){
+      ctx.font='500 11px "Barlow Semi Condensed", sans-serif';
+      for(const v of drawn){
+        if(v.cap) continue;
+        if(dimP(v.player)) continue;
+        const [sx,sy]=toS(v.x,v.y);
+        ctx.lineWidth=3; ctx.strokeStyle='rgba(5,14,7,.8)'; ctx.strokeText(v.name, sx+sz/2+4, sy);
+        ctx.fillStyle='rgba(225,236,220,.85)'; ctx.fillText(v.name, sx+sz/2+4, sy);
+      }
+    }
+  }
+
+  // highlighted player (hovered in the list)
+  if(state.hoverPl || state.hoverAl){
+    for(const p of players.filter(q=>visible(q) && hi(q))){
+      ctx.strokeStyle='#ffffff'; ctx.lineWidth=1.6;
+      for(const v of p.villages){
+        const [sx,sy]=toS(v.x,v.y);
+        ctx.beginPath(); ctx.arc(sx,sy,Math.max(8,sz*1.2)+(v.art&&state.arts?5:0),0,Math.PI*2); ctx.stroke();
+      }
+    }
+  }
+
+  // hover / selection ring
+  for(const v of [state.hover, state.sel]){
+    if(!v) continue;
+    const [sx,sy]=toS(v.x,v.y);
+    ctx.beginPath(); ctx.arc(sx,sy,Math.max(9,sz*1.4),0,Math.PI*2);
+    ctx.strokeStyle='#ffffff'; ctx.lineWidth=2; ctx.stroke();
+  }
+}
+
+// ---------- HIT TEST / TOOLTIP ----------
+function hit(sx,sy){
+  let best=null, bd=Infinity; const sz=vsize();
+  for(const v of allVillages){
+    if(!visible(v.player)) continue;
+    const [x,y]=toS(v.x,v.y);
+    const d=Math.hypot(x-sx,y-sy);
+    const rad = (v.art&&state.arts) ? Math.max(9, sz*1.3) : Math.max(6, sz*0.8);
+    if(d<rad && d<bd){ bd=d; best=v; }
+  }
+  return best;
+}
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function showTip(v,sx,sy){
+  if(!v){ tip.hidden=true; return; }
+  const p=v.player, a=AL[p.al];
+  let h=`<div class="pn"><i class="sw" style="background:${a.color}"></i>${esc(p.name)}</div>`+
+    `<div class="row">${esc(tagOf(p))}${p.tribe?' · '+p.tribe:''}<b>${fmt(p.pop)} pop</b></div>`+
+    `<div class="row" style="margin-top:4px;color:var(--fg)">${esc(v.name)}${v.cap?' <span style="color:var(--gold)">(capital)</span>':''}</div>`+
+    `<div class="row">(${v.x}|${v.y})<b>${fmt(v.pop)} inh.</b></div>`;
+  if(v.art){ const t=v.art; h+=`<div class="art"><div class="pn" style="font-size:.9rem"><i class="dia t-${t.tier}"></i>${esc(t.name)}</div><div class="row"><span${t.neg?' class="neg"':''}>${esc(t.bonus)}</span><b>${t.scope}</b></div></div>`; }
+  tip.innerHTML=h; tip.hidden=false;
+  const bw=box.clientWidth, bh=box.clientHeight, tw=tip.offsetWidth, th=tip.offsetHeight;
+  let x=sx+14, y=sy+14;
+  if(x+tw>bw-4) x=sx-tw-14; if(y+th>bh-4) y=sy-th-14;
+  tip.style.left=Math.max(4,x)+'px'; tip.style.top=Math.max(4,y)+'px';
+}
+
+// ---------- INPUT ----------
+const ptrs=new Map(); let drag=null, pinch=null;
+box.addEventListener('pointerdown',e=>{
+  if(e.target.closest('button')) return;
+  box.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId,{x:e.offsetX,y:e.offsetY});
+  if(ptrs.size===1){ drag={x:e.offsetX,y:e.offsetY,cx:view.cx,cy:view.cy,moved:false}; }
+  else if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; pinch={d:Math.hypot(a.x-b.x,a.y-b.y), s:view.s}; drag=null; }
+});
+box.addEventListener('pointermove',e=>{
+  const r=box.getBoundingClientRect(); const x=e.clientX-r.left, y=e.clientY-r.top;
+  if(ptrs.has(e.pointerId)) ptrs.set(e.pointerId,{x,y});
+  const [wx,wy]=toW(x,y);
+  coordEl.textContent=`(${Math.round(wx)}|${Math.round(wy)})`;
+  if(pinch && ptrs.size===2){
+    const [a,b]=[...ptrs.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y);
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+    zoomAt(mx,my,(pinch.s*d/pinch.d)/view.s); return;
+  }
+  if(drag){
+    const dx=x-drag.x, dy=y-drag.y;
+    if(Math.abs(dx)+Math.abs(dy)>4) { drag.moved=true; box.classList.add('drag'); }
+    if(drag.moved){ view.cx=drag.cx-dx/view.s; view.cy=drag.cy+dy/view.s; clampView(); state.hover=null; tip.hidden=true; draw(); return; }
+  }
+  const v=hit(x,y);
+  if(v!==state.hover){ state.hover=v; draw(); }
+  showTip(v,x,y);
+});
+function endPtr(e){
+  if(!ptrs.has(e.pointerId)) return;
+  const wasClick = drag && !drag.moved && ptrs.size===1;
+  ptrs.delete(e.pointerId);
+  if(ptrs.size<2) pinch=null;
+  box.classList.remove('drag');
+  if(wasClick && e.type==='pointerup'){
+    const v=hit(e.offsetX,e.offsetY);
+    setFocus(v ? (state.focus===v.player.name?null:v.player.name) : null, false);
+    if(v){ state.hover=v; showTip(v,e.offsetX,e.offsetY); }
+  }
+  drag=null;
+}
+box.addEventListener('pointerup',endPtr);
+box.addEventListener('pointercancel',endPtr);
+box.addEventListener('pointerleave',()=>{ if(!ptrs.size){ state.hover=null; tip.hidden=true; coordEl.textContent='( | )'; draw(); } });
+box.addEventListener('wheel',e=>{ e.preventDefault(); zoomAt(e.offsetX,e.offsetY,Math.exp(-e.deltaY*0.0018)); },{passive:false});
+
+document.getElementById('zin').onclick=()=>zoomAt(W/2,H/2,1.6);
+document.getElementById('zout').onclick=()=>zoomAt(W/2,H/2,1/1.6);
+document.getElementById('zmid').onclick=()=>{ fitBox(-40,40,-40,40,0); draw(); };
+document.getElementById('optLabels').onchange=e=>{ state.labels=e.target.checked; draw(); };
+document.getElementById('optArts').onchange=e=>{ state.arts=e.target.checked; draw(); };
+
+function setFocus(name, zoom){
+  state.focus=name;
+  try{ history.replaceState(null,'',name?'#p='+encodeURIComponent(name):location.pathname); }catch(e){}
+  if(window.renderActivity) renderActivity();
+  document.querySelectorAll('.pl').forEach(el=>el.classList.toggle('focus', el.dataset.p===name));
+  if(name && zoom){
+    const p=players.find(q=>q.name===name);
+    const xs=p.villages.map(v=>v.x), ys=p.villages.map(v=>v.y);
+    fitBox(Math.min(...xs),Math.max(...xs),Math.min(...ys),Math.max(...ys),10);
+  }
+  draw();
+}
+
+// ---------- SIDEBAR ----------
+const alWrap=document.getElementById('alliances');
+const alDetails={}, artGroups={};
+// an alliance's artifacts leave the list while its section is collapsed or the alliance is hidden
+function syncArtGroups(){
+  for(const id in artGroups){
+    const d=alDetails[id];
+    artGroups[id].hidden = !!d && (!d.open || state.hiddenAl.has(id));
+  }
+}
+for(const a of ALLIANCES){
+  const ps=players.filter(p=>p.al===a.id).sort((x,y)=>y.pop-x.pop);
+  if(!ps.length) continue;
+  const vcount=ps.reduce((s,p)=>s+p.villages.length,0), pop=ps.reduce((s,p)=>s+(p.pop||0),0);
+  const d=document.createElement('details'); d.className='al'; d.open=true;
+  const sw = a.stroke ? `background:${a.color};border-color:${a.stroke}` : `background:${a.color}`;
+  d.innerHTML=`<summary>
+      <svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      <input type="checkbox" checked aria-label="Show ${esc(a.tag)}" id="al-${a.id}">
+      <span class="al-name"><i class="sw" style="${sw};margin-right:6px;vertical-align:-1px"></i>${esc(a.tag)}${a.rank?`<small>#${a.rank}</small>`:''}</span>
+      <span class="al-stats">${a.points?fmt(a.points)+' pts<br>':''}${ps.length}${a.members?'/'+a.members:''} pl · ${vcount} v${pop?' · '+fmt(pop):''}</span>
+    </summary>
+    ${a.note?`<p class="al-note">${esc(a.note)}</p>`:''}
+    <div class="players"></div>`;
+  const cb=d.querySelector('input');
+  cb.addEventListener('click',e=>e.stopPropagation());
+  cb.addEventListener('change',()=>{ cb.checked?state.hiddenAl.delete(a.id):state.hiddenAl.add(a.id); syncArtGroups(); draw(); });
+  d.addEventListener('toggle',syncArtGroups);
+  alDetails[a.id]=d;
+  const sum=d.querySelector('summary');
+  sum.addEventListener('mouseenter',()=>{ state.hoverAl=a.id; draw(); });
+  sum.addEventListener('mouseleave',()=>{ state.hoverAl=null; draw(); });
+  const list=d.querySelector('.players');
+  for(const p of ps){
+    const row=document.createElement('div'); row.className='pl'; row.dataset.p=p.name;
+    const chips=[];
+    (p.arts||[]).forEach(t=>chips.push(`<span class="chip" title="${esc(t.name)} · ${t.bonus} · ${t.scope}"><i class="dia t-${t.tier}"></i>${t.tier} ${KIND_SHORT[t.kind]}</span>`));
+    row.innerHTML=`<input type="checkbox" checked id="pl-${esc(p.name)}" aria-label="Show ${esc(p.name)}">
+      <div style="min-width:0"><button class="nm" type="button">${esc(p.name)}</button>
+        <div class="sub">${p.tag?esc(p.tag)+' · ':''}${p.tribe||'tribe ?'} · ${p.home.cap?'cap':'village'} (${p.home.x}|${p.home.y})</div>
+        ${chips.length?`<div class="chips">${chips.join('')}</div>`:''}</div>
+      <div class="num">${fmt(p.pop)}<span>${p.villages.length} villages</span></div>`;
+    const pc=row.querySelector('input');
+    pc.addEventListener('change',()=>{ pc.checked?state.hiddenPl.delete(p.name):state.hiddenPl.add(p.name); draw(); });
+    row.addEventListener('mouseenter',()=>{ state.hoverPl=p.name; draw(); });
+    row.addEventListener('mouseleave',()=>{ state.hoverPl=null; draw(); });
+    row.querySelector('.nm').addEventListener('click',()=>setFocus(state.focus===p.name?null:p.name, state.focus!==p.name));
+    list.appendChild(row);
+  }
+  alWrap.appendChild(d);
+}
+
+const artWrap=document.getElementById('arts');
+// one tinted group per alliance (alliance order), artifacts inside keep tier order
+for(const a of ALLIANCES){
+  const list=ARTIFACTS.filter(t=>t.village && t.village.player.al===a.id)
+    .sort((x,y)=>TIER_ORDER[x.tier]-TIER_ORDER[y.tier] || x.name.localeCompare(y.name) || x.village.player.name.localeCompare(y.village.player.name));
+  if(!list.length) continue;
+  const grp=document.createElement('div'); grp.className='artgrp';
+  grp.style.setProperty('--c', a.stroke || a.color);
+  grp.title=a.tag;
+  for(const t of list){
+    const v=t.village; const b=document.createElement('button'); b.type='button'; b.className='artrow';
+    b.innerHTML=`<i class="dia t-${t.tier}"></i>
+      <div style="min-width:0"><div class="an">${esc(t.name)}</div><div class="ah"><b>${esc(v.player.name)}</b> · ${esc(tagOf(v.player))} · <span${t.neg?' class="neg"':''}>${esc(t.bonus)}</span>, ${t.scope.toLowerCase()}</div></div>
+      <div class="ac">(${t.x}|${t.y})</div>`;
+    b.addEventListener('click',()=>{ state.sel=v; view.cx=t.x; view.cy=t.y; view.s=Math.max(view.s,10); clampView(); draw(); });
+    b.addEventListener('mouseenter',()=>{ state.hoverPl=v.player.name; draw(); });
+    b.addEventListener('mouseleave',()=>{ state.hoverPl=null; draw(); });
+    grp.appendChild(b);
+  }
+  artWrap.appendChild(grp);
+  artGroups[a.id]=grp;
+}
+syncArtGroups();
+
+// ---------- SIZE ----------
+function resize(){
+  const r=box.getBoundingClientRect();
+  if(!r.width) return;
+  W=r.width; H=r.height; dpr=window.devicePixelRatio||1;
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  if(!view.init){ fitData(); view.init=true; } else clampView();
+  draw();
+}
+new ResizeObserver(resize).observe(box);
+if(document.fonts) document.fonts.ready.then(draw);
+
+// ---------- ACTIVITY (selected player over time) ----------
+document.getElementById('noarts').hidden = !!ARTIFACTS.length;
+const META = window.META || {};
+const byPid = new Map(players.map(p=>[p.pid,p]));
+const fmtDay = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+const fmtT = (ts, withDay) => { const d=new Date(ts*1000);
+  const hm = d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  return withDay ? fmtDay(d)+' '+hm : hm; };
+const sameDay = (a,b) => new Date(a*1000).toDateString()===new Date(b*1000).toDateString();
+const fmtTs = ts => fmtT(ts, !sameDay(ts, Date.now()/1000));
+const fmtK = v => v>=1e6 ? (v/1e6).toFixed(1).replace(/\.0$/,'')+'M' : v>=1e3 ? Math.round(v/1e3)+'k' : String(v);
+const GAP = 75*60;            // > 75 min between scans = bot was off; lines are not drawn across it
+const ctip = document.createElement('div'); ctip.className='ctip'; ctip.hidden=true; document.body.appendChild(ctip);
+function placeTip(e,html){ ctip.innerHTML=html; ctip.hidden=false;
+  const w=ctip.offsetWidth, h=ctip.offsetHeight; let x=e.clientX+14, y=e.clientY+14;
+  if(x+w>innerWidth-6) x=e.clientX-w-14; if(y+h>innerHeight-6) y=e.clientY-h-14;
+  ctip.style.left=Math.max(4,x)+'px'; ctip.style.top=Math.max(4,y)+'px'; }
+
+const HIST = new Map();       // pid -> [[ts,pop],...]
+const RAID = new Map();       // pid -> [[ts,rank,resources],...]  (robbers of the week, only while in top 10)
+let SCANS = [];
+function ingestHistory(){
+  const all=new Set();
+  for(const day of (window.HISTORY||[]).slice().sort((a,b)=>a.day<b.day?-1:1)){
+    day.ts.forEach(t=>all.add(t));
+    for(const pid in day.pop){ const arr=HIST.get(+pid)||[]; day.pop[pid].forEach((v,i)=>{ if(v!=null) arr.push([day.ts[i],v]); }); HIST.set(+pid,arr); }
+    for(const pid in (day.raid||{})){ const arr=RAID.get(+pid)||[]; arr.push(...day.raid[pid]); RAID.set(+pid,arr); }
+  }
+  SCANS=[...all].sort((a,b)=>a-b);
+}
+function loadHistory(done){
+  const days=window.HISTORY_DAYS||[]; let left=days.length; if(!left) return done();
+  days.forEach(d=>{ const s=document.createElement('script'); s.src='data/history/'+d+'.js';
+    s.onload=s.onerror=()=>{ if(--left===0) done(); }; document.head.appendChild(s); });
+}
+function deltas(ser){ const out=[]; for(let i=1;i<ser.length;i++){ if(ser[i][0]-ser[i-1][0]<=GAP) out.push([ser[i][0], ser[i][1]-ser[i-1][1]]); } return out; }
+function niceTicks(lo,hi,n){ const span=hi-lo||1, step0=span/n, mag=10**Math.floor(Math.log10(step0));
+  const step=[1,2,5,10].map(m=>m*mag).find(s=>s>=step0); const out=[]; for(let v=Math.ceil(lo/step)*step; v<=hi+1e-9; v+=step) out.push(+v.toFixed(6)); return out; }
+
+const RANGES=[['1D',86400],['3D',3*86400],['1W',7*86400],['4W',28*86400]];
+let range='1D'; try{ const r=localStorage.getItem('nt-range'); if(RANGES.some(x=>x[0]===r)) range=r; }catch(e){}
+const GUT=40, PAD=4;
+let lastW=0;
+
+function renderActivity(){
+  const sec=document.getElementById('actsec'), el=document.getElementById('activity');
+  const p = state.focus ? players.find(q=>q.name===state.focus) : null;
+  sec.hidden=!p; ctip.hidden=true;
+  if(!p){ el.innerHTML=''; return; }
+  const VW=Math.max(200,(sec.clientWidth-24)-GUT);     // visible plot width = exactly one day
+  lastW=sec.clientWidth;
+  const span=RANGES.find(r=>r[0]===range)[1];
+  const tEnd=Math.max(Date.now()/1000, SCANS.length?SCANS[SCANS.length-1]:0), t0=tEnd-span;
+  const k=VW/86400, CW=Math.round(span*k)+PAD+34, X=t=>PAD+(t-t0)*k;
+  const ser=(HIST.get(p.pid)||[]).filter(d=>d[0]>=t0);
+  const rd=(RAID.get(p.pid)||[]).filter(d=>d[0]>=t0);
+  const ds=deltas(ser), changed=ds.filter(d=>d[1]!==0).length;
+  const a=AL[p.al];
+  let Ypop=null;
+
+  // vertical grid: every 3 local hours, stronger + date label at midnight
+  const off=-new Date().getTimezoneOffset()*60, step=3*3600;
+  const vgrid=(h,labels)=>{ let s=''; for(let t=Math.ceil((t0+off)/step)*step-off; t<=tEnd; t+=step){
+      const d=new Date(t*1000), mid=d.getHours()===0, x=X(t).toFixed(1);
+      s+=`<line x1="${x}" x2="${x}" y1="0" y2="${h}" stroke="rgba(255,255,255,${mid?.2:.05})"/>`;
+      if(labels) s+=`<text x="${+x+2}" y="${h+11}" ${mid?'style="fill:var(--fg)"':''}>${mid?fmtDay(d):String(d.getHours()).padStart(2,'0')+':00'}</text>`; }
+    return s; };
+  const hgrid=(ticks,Y,fmtv)=>({ plot: ticks.map(v=>`<line x1="0" x2="${CW}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(255,255,255,.07)"/>`).join(''),
+    gut: ticks.map(v=>`<text x="${GUT-6}" y="${Y(v)+3}" text-anchor="end">${fmtv(v)}</text>`).join('') });
+  const linePath=(pts,Y)=>{ let d='', pv=null; for(const q of pts){ d+=(pv&&q[0]-pv[0]<=GAP?'L':'M')+X(q[0]).toFixed(1)+','+Y(q[q.length-1]).toFixed(1); pv=q; } return d; };
+  const chart=(id,h,axisH,gut,plot)=>`<div class="crow"><svg class="gut" width="${GUT}" height="${h+axisH}">${gut}</svg>
+    <div class="sc"><svg id="${id}" width="${CW}" height="${h+axisH}">${plot}<line class="xh" y1="0" y2="${h}" stroke="#fff" stroke-width="1" opacity="0"/></svg></div></div>`;
+
+  let html=`<div class="act-head"><div class="act-name"><i class="sw" style="background:${a.color}${a.stroke?';border-color:'+a.stroke:''}"></i>${esc(p.name)}</div>
+    <button type="button" data-clear>× close</button></div>
+    <div class="act-sub">${esc(tagOf(p))} · ${p.tribe||'?'} · ${p.villages.length} v · ${fmt(p.pop)} pop · first seen ${p.first?fmtT(p.first,true):'–'}</div>
+    <div class="seg">${RANGES.map(r=>`<button type="button" data-r="${r[0]}" aria-pressed="${r[0]===range}">${r[0]}</button>`).join('')}</div>`;
+
+  // 1. population
+  const H1=110;
+  if(ser.length){
+    let lo=Math.min(...ser.map(d=>d[1])), hi=Math.max(...ser.map(d=>d[1])); if(hi-lo<10){ const m=(hi+lo)/2; lo=m-5; hi=m+5; }
+    const Y=v=>6+(hi-v)/(hi-lo)*(H1-12), g=hgrid(niceTicks(lo,hi,3),Y,v=>v);
+    Ypop=Y;
+    const dots=ser.map(d=>`<circle cx="${X(d[0]).toFixed(1)}" cy="${Y(d[1]).toFixed(1)}" r="2" fill="#ffd23a"/>`).join('');
+    html+=`<div class="ch"><h3>Population <b>${fmt(ser[0][1])} → ${fmt(ser[ser.length-1][1])}</b></h3>`+
+      chart('cPop',H1,14,g.gut, vgrid(H1,true)+g.plot+`<path d="${linePath(ser,Y)}" fill="none" stroke="#ffd23a" stroke-width="2" stroke-linejoin="round"/>${dots}<circle class="xd" r="4" fill="#ffd23a" stroke="#11261a" stroke-width="2" opacity="0"/>`)+`</div>`;
+  } else html+=`<p class="act-empty">No population scans in this range.</p>`;
+
+  // 2. change per scan
+  if(ds.length){
+    const H2=56, mx=Math.max(1,...ds.map(d=>Math.abs(d[1]))), Z=H2/2, YB=v=>Z-(v/mx)*(Z-4);
+    const bars=ds.filter(d=>d[1]).map(d=>{ const y=YB(d[1]); return `<rect x="${(X(d[0])-1.5).toFixed(1)}" y="${Math.min(y,Z)}" width="3" height="${Math.max(1.5,Math.abs(y-Z))}" rx="1" fill="${d[1]>0?'#ffd23a':'#ff8f8f'}"/>`; }).join('');
+    html+=`<div class="ch"><h3>Population change per scan <b>changed in ${changed} of ${ds.length}</b></h3>`+
+      chart('cDel',H2,0,`<text x="${GUT-6}" y="${YB(mx)+3}" text-anchor="end">+${mx}</text><text x="${GUT-6}" y="${Z+3}" text-anchor="end">0</text>`,
+        vgrid(H2,false)+`<line x1="0" x2="${CW}" y1="${Z}" y2="${Z}" stroke="rgba(255,255,255,.22)"/>${bars}`)+`</div>`;
+  }
+
+  // 3. robbers of the week (resources robbed; rank in tooltip). Only known while the player is in the top 10.
+  const H3=80;
+  html+=`<div class="ch"><h3>Robbers of the week <b>${rd.length?'#'+rd[rd.length-1][1]+' · '+fmt(rd[rd.length-1][2])+' res':'not in top 10'}</b></h3>`;
+  if(rd.length){
+    let lo=Math.min(...rd.map(d=>d[2])), hi=Math.max(...rd.map(d=>d[2])); if(hi-lo<1000){ lo=Math.max(0,lo-500); hi=hi+500; }
+    const Y=v=>6+(hi-v)/(hi-lo)*(H3-12), g=hgrid(niceTicks(lo,hi,3),Y,fmtK);
+    const dots=rd.map(d=>`<circle cx="${X(d[0]).toFixed(1)}" cy="${Y(d[2]).toFixed(1)}" r="2" fill="#2ee6d0"/>`).join('');
+    html+=chart('cRaid',H3,14,g.gut, vgrid(H3,true)+g.plot+`<path d="${linePath(rd,Y)}" fill="none" stroke="#2ee6d0" stroke-width="2" stroke-linejoin="round"/>${dots}`)+`</div>`;
+  } else html+=`<p class="act-empty">Not in the robbers' top 10 during this range.</p></div>`;
+  if(range!=='1D') html+=`<div class="hint">Drag the charts left/right to scroll back in time.</div>`;
+
+  // 4. hour of day (fits the panel, no scroll)
+  if(ds.length){
+    const obs=new Array(24).fill(0), hit=new Array(24).fill(0);
+    ds.forEach(d=>{ const hr=new Date(d[0]*1000).getHours(); obs[hr]++; if(d[1]) hit[hr]++; });
+    const cw=VW/24;
+    const cells=obs.map((n,i)=>`<rect data-h="${i}" data-o="${n}" data-c="${hit[i]}" x="${GUT+i*cw+1}" y="2" width="${cw-2}" height="22" rx="2" `+
+      (n?`fill="color-mix(in srgb, #ffd23a ${Math.round(8+hit[i]/n*92)}%, #16301f)"`:`fill="none" stroke="#2a4733" stroke-dasharray="2 2"`)+`/>`).join('');
+    const hl=[0,6,12,18,23].map(i=>`<text x="${GUT+i*cw+cw/2}" y="36" text-anchor="middle">${String(i).padStart(2,'0')}</text>`).join('');
+    html+=`<div class="ch"><h3>Changes by hour <b>brighter = more often</b></h3>
+      <svg id="cHr" width="${GUT+VW}" height="40"><text x="${GUT-6}" y="17" text-anchor="end">hr</text>${cells}${hl}</svg></div>`;
+  }
+  el.innerHTML=html;
+
+  // controls
+  el.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ range=b.dataset.r; try{localStorage.setItem('nt-range',range);}catch(e){} renderActivity(); });
+  el.querySelector('[data-clear]').onclick=()=>setFocus(null,false);
+
+  // scrollers: start at "now" (right end), move together, drag to scroll
+  const scs=[...el.querySelectorAll('.sc')];
+  const raidAt=new Map(rd.map(d=>[d[0],d]));
+  const hideX=()=>{ ctip.hidden=true; el.querySelectorAll('.xh,.xd').forEach(n=>n.setAttribute('opacity',0)); };
+  const hover=(e,svg)=>{
+    const pts=ser.length?ser:rd; if(!pts.length) return;
+    const x=e.clientX-svg.getBoundingClientRect().left;
+    let best=pts[0]; for(const d of pts) if(Math.abs(X(d[0])-x)<Math.abs(X(best[0])-x)) best=d;
+    if(Math.abs(X(best[0])-x)>30) return hideX();
+    const t=best[0], xx=X(t);
+    el.querySelectorAll('.xh').forEach(l=>{ l.setAttribute('x1',xx); l.setAttribute('x2',xx); l.setAttribute('opacity',.45); });
+    const i=ser.findIndex(d=>d[0]===t), pv=i>0&&t-ser[i-1][0]<=GAP?ser[i-1]:null, r=raidAt.get(t);
+    const dot=el.querySelector('.xd'); if(dot&&i>=0&&Ypop){ dot.setAttribute('cx',xx); dot.setAttribute('cy',Ypop(ser[i][1])); dot.setAttribute('opacity',1); }
+    let h=`${fmtT(t,true)}`;
+    if(i>=0) h+=`<br><b>${fmt(ser[i][1])}</b> pop `+(pv?`<b>${ser[i][1]-pv[1]>0?'+':''}${ser[i][1]-pv[1]}</b>`:`<span class="m">(first scan after a gap)</span>`);
+    h+= r ? `<br>robbers <b>#${r[1]}</b> · <b>${fmt(r[2])}</b> res` : `<br><span class="m">not in robbers' top 10</span>`;
+    placeTip(e,h);
+  };
+  let syncing=false;
+  scs.forEach(sc=>{
+    sc.scrollLeft=sc.scrollWidth;
+    sc.addEventListener('scroll',()=>{ if(syncing) return; syncing=true; scs.forEach(o=>{ if(o!==sc) o.scrollLeft=sc.scrollLeft; }); syncing=false; });
+    let drag=null;
+    sc.addEventListener('pointerdown',e=>{ drag={x:e.clientX, sl:sc.scrollLeft}; sc.setPointerCapture(e.pointerId); sc.classList.add('drag'); });
+    const end=()=>{ drag=null; sc.classList.remove('drag'); };
+    sc.addEventListener('pointerup',end); sc.addEventListener('pointercancel',end);
+    sc.addEventListener('pointermove',e=>{ if(drag){ sc.scrollLeft=drag.sl-(e.clientX-drag.x); hideX(); return; } hover(e, sc.querySelector('svg')); });
+    sc.addEventListener('pointerleave',()=>{ if(!drag) hideX(); });
+  });
+  el.querySelectorAll('#cHr rect').forEach(r=>{ const i=+r.dataset.h, n=+r.dataset.o, c=+r.dataset.c;
+    r.addEventListener('pointermove',e=>placeTip(e, n ? `${String(i).padStart(2,'0')}:00–${String(i+1).padStart(2,'0')}:00<br>changed in <b>${c}</b> of <b>${n}</b> scans` : `${String(i).padStart(2,'0')}:00 · not scanned`));
+    r.addEventListener('pointerleave',()=>ctip.hidden=true); });
+}
+function bindNames(el){ el.querySelectorAll('[data-pl]').forEach(b=>b.onclick=()=>setFocus(b.dataset.pl,true)); }
+
+// ---------- TOP 10 ----------
+const T10 = window.TOP10 || {};
+const BOARDS=[['offs','Attackers'],['defs','Defenders'],['raiders','Robbers']];
+let board='offs';
+function renderTop10(){
+  document.getElementById('t10tabs').innerHTML=BOARDS.map(([k,l])=>`<button type="button" data-b="${k}" aria-pressed="${k===board}">${l}</button>`).join('');
+  document.querySelectorAll('#t10tabs button').forEach(b=>b.onclick=()=>{ board=b.dataset.b; renderTop10(); });
+  const rows=(T10.now||{})[board]||[], prev=new Map(((T10.prev||{})[board]||[]).map(r=>[r[2],r[3]]));
+  if(!rows.length){ document.getElementById('t10').innerHTML='<p class="act-empty">No data yet.</p>'; return; }
+  document.getElementById('t10').innerHTML=`<div class="act-sub">scan ${T10.ts?fmtTs(T10.ts):'–'}${T10.prev_ts?' · Δ vs '+fmtTs(T10.prev_ts):''}</div>
+    <table class="t10">${rows.map(([rk,nm,pid,v])=>{ const pv=prev.get(pid), d=pv==null?null:v-pv; const p=byPid.get(pid);
+      return `<tr><td class="r" style="width:22px">${rk}.</td><td>${p?`<i class="sw" style="background:${AL[p.al].color};margin-right:5px"></i><button type="button" class="nmb" data-pl="${esc(p.name)}">${esc(nm)}</button>`:esc(nm)}</td>
+      <td class="r">${fmt(v)}</td><td class="d">${d?'+'+fmt(d):''}</td></tr>`; }).join('')}</table>`;
+  bindNames(document.getElementById('t10'));
+}
+
+// ---------- EVENTS ----------
+const EV_LABEL={new_player:'new player',new_village:'new village',village_gone:'village gone',village_taken:'village taken',alliance:'alliance',rename:'renamed'};
+function renderEvents(){
+  const ev=(window.EVENTS||[]).filter(e=>e[2]!=='villages').slice(0,40);
+  document.getElementById('events').innerHTML = ev.length ? ev.map(([ts,nm,k,d])=>`<div class="ev"><span class="t">${fmtTs(ts)}</span>
+    <span>${players.some(p=>p.name===nm)?`<button type="button" class="nmb" data-pl="${esc(nm)}">${esc(nm)}</button>`:`<b>${esc(nm)}</b>`}
+    <span class="k">· ${EV_LABEL[k]||k} ·</span> ${esc(d)}</span></div>`).join('') : '<p class="act-empty">Nothing yet. New villages, alliance moves and renames show up here.</p>';
+  bindNames(document.getElementById('events'));
+}
+
+// ---------- META / boot ----------
+(function(){
+  const m=document.getElementById('meta'), lr=META.last_run;
+  m.textContent = META.last_ok ? `last scan ${fmtTs(META.last_ok)} · ${META.scans} scans since ${fmtT(META.first_scan,true)} · ${players.length} players`
+    + (lr && !lr.ok ? ' · LAST RUN FAILED' : '') : 'no scans yet';
+})();
+renderTop10(); renderEvents();
+loadHistory(()=>{ ingestHistory();
+  const m=location.hash.match(/^#p=(.+)$/), want=m&&decodeURIComponent(m[1]);
+  if(want && players.some(p=>p.name===want)) setFocus(want,false); });
+new ResizeObserver(()=>{ const s=document.getElementById('actsec'); if(!s.hidden && s.clientWidth!==lastW) renderActivity(); }).observe(document.querySelector('.panel'));
+// data is rewritten every scan: reload every 5 min (selected player is kept in the URL)
+setTimeout(()=>location.reload(), 5*60*1000);
+
+</script>
