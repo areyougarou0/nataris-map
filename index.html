@@ -118,6 +118,10 @@ details[open] .chev{transform:rotate(90deg)}
 .ctip{position:fixed;pointer-events:none;background:rgba(8,18,10,.96);border:1px solid #3f6b49;border-radius:3px;padding:5px 8px;font-size:.82rem;z-index:10;box-shadow:0 4px 14px rgba(0,0,0,.5);font-variant-numeric:tabular-nums;white-space:nowrap}
 .ctip b{font-family:var(--mono);font-weight:500}
 .ctip .m{color:var(--muted)}
+.t10h{display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap}
+.seg.dw{margin:0}
+.seg.dw button{padding:0 6px;font-size:.72rem;line-height:1.5}
+table.t10 td.d .m{color:var(--muted)}
 table.t10{width:100%;border-collapse:collapse;font-size:.86rem;margin-top:4px}
 table.t10 td{padding:3px 4px;border-top:1px solid #1f3a27}
 table.t10 td.r{font-family:var(--mono);font-size:.75rem;text-align:right;font-variant-numeric:tabular-nums}
@@ -187,13 +191,15 @@ table.t10 td.d{font-family:var(--mono);font-size:.7rem;text-align:right;color:va
   </div>
 </div>
 
-<script src="data/meta.js"></script>
-<script src="data/alliances.js"></script>
-<script src="data/players.js"></script>
-<script src="data/artifacts.js"></script>
-<script src="data/top10.js"></script>
-<script src="data/events.js"></script>
-<script src="data/history/index.js"></script>
+<script>window.NT_V=Date.now();
+document.write('<script src="data/meta.js?v='+NT_V+'"><\/script>');
+document.write('<script src="data/alliances.js?v='+NT_V+'"><\/script>');
+document.write('<script src="data/players.js?v='+NT_V+'"><\/script>');
+document.write('<script src="data/artifacts.js?v='+NT_V+'"><\/script>');
+document.write('<script src="data/top10.js?v='+NT_V+'"><\/script>');
+document.write('<script src="data/events.js?v='+NT_V+'"><\/script>');
+document.write('<script src="data/history/index.js?v='+NT_V+'"><\/script>');
+</script>
 <script>
 // ---------- DATA (written by export.py every scan) ----------
 const ALLIANCES = window.ALLIANCES || [];
@@ -639,7 +645,7 @@ const fmtT = (ts, withDay) => { const d=new Date(ts*1000);
 const sameDay = (a,b) => new Date(a*1000).toDateString()===new Date(b*1000).toDateString();
 const fmtTs = ts => fmtT(ts, !sameDay(ts, Date.now()/1000));
 const fmtK = v => v>=1e6 ? (v/1e6).toFixed(1).replace(/\.0$/,'')+'M' : v>=1e3 ? Math.round(v/1e3)+'k' : String(v);
-const GAP = 75*60;            // > 75 min between scans = bot was off; lines are not drawn across it
+const GAP = 2*3600;           // >= 2h between scans = bot was off: no line across it, and the change across it is NOT counted as activity
 const ctip = document.createElement('div'); ctip.className='ctip'; ctip.hidden=true; document.body.appendChild(ctip);
 function placeTip(e,html){ ctip.innerHTML=html; ctip.hidden=false;
   const w=ctip.offsetWidth, h=ctip.offsetHeight; let x=e.clientX+14, y=e.clientY+14;
@@ -660,10 +666,10 @@ function ingestHistory(){
 }
 function loadHistory(done){
   const days=window.HISTORY_DAYS||[]; let left=days.length; if(!left) return done();
-  days.forEach(d=>{ const s=document.createElement('script'); s.src='data/history/'+d+'.js';
+  days.forEach(d=>{ const s=document.createElement('script'); s.src='data/history/'+d+'.js?v='+(window.NT_V||'');
     s.onload=s.onerror=()=>{ if(--left===0) done(); }; document.head.appendChild(s); });
 }
-function deltas(ser){ const out=[]; for(let i=1;i<ser.length;i++){ if(ser[i][0]-ser[i-1][0]<=GAP) out.push([ser[i][0], ser[i][1]-ser[i-1][1]]); } return out; }
+function deltas(ser){ const out=[]; for(let i=1;i<ser.length;i++){ if(ser[i][0]-ser[i-1][0]<GAP) out.push([ser[i][0], ser[i][1]-ser[i-1][1]]); } return out; }
 function niceTicks(lo,hi,n){ const span=hi-lo||1, step0=span/n, mag=10**Math.floor(Math.log10(step0));
   const step=[1,2,5,10].map(m=>m*mag).find(s=>s>=step0); const out=[]; for(let v=Math.ceil(lo/step)*step; v<=hi+1e-9; v+=step) out.push(+v.toFixed(6)); return out; }
 
@@ -697,7 +703,7 @@ function renderActivity(){
     return s; };
   const hgrid=(ticks,Y,fmtv)=>({ plot: ticks.map(v=>`<line x1="0" x2="${CW}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(255,255,255,.07)"/>`).join(''),
     gut: ticks.map(v=>`<text x="${GUT-6}" y="${Y(v)+3}" text-anchor="end">${fmtv(v)}</text>`).join('') });
-  const linePath=(pts,Y)=>{ let d='', pv=null; for(const q of pts){ d+=(pv&&q[0]-pv[0]<=GAP?'L':'M')+X(q[0]).toFixed(1)+','+Y(q[q.length-1]).toFixed(1); pv=q; } return d; };
+  const linePath=(pts,Y)=>{ let d='', pv=null; for(const q of pts){ d+=(pv&&q[0]-pv[0]<GAP?'L':'M')+X(q[0]).toFixed(1)+','+Y(q[q.length-1]).toFixed(1); pv=q; } return d; };
   const chart=(id,h,axisH,gut,plot)=>`<div class="crow"><svg class="gut" width="${GUT}" height="${h+axisH}">${gut}</svg>
     <div class="sc"><svg id="${id}" width="${CW}" height="${h+axisH}">${plot}<line class="xh" y1="0" y2="${h}" stroke="#fff" stroke-width="1" opacity="0"/></svg></div></div>`;
 
@@ -765,7 +771,7 @@ function renderActivity(){
     if(Math.abs(X(best[0])-x)>30) return hideX();
     const t=best[0], xx=X(t);
     el.querySelectorAll('.xh').forEach(l=>{ l.setAttribute('x1',xx); l.setAttribute('x2',xx); l.setAttribute('opacity',.45); });
-    const i=ser.findIndex(d=>d[0]===t), pv=i>0&&t-ser[i-1][0]<=GAP?ser[i-1]:null, r=raidAt.get(t);
+    const i=ser.findIndex(d=>d[0]===t), pv=i>0&&t-ser[i-1][0]<GAP?ser[i-1]:null, r=raidAt.get(t);
     const dot=el.querySelector('.xd'); if(dot&&i>=0&&Ypop){ dot.setAttribute('cx',xx); dot.setAttribute('cy',Ypop(ser[i][1])); dot.setAttribute('opacity',1); }
     let h=`${fmtT(t,true)}`;
     if(i>=0) h+=`<br><b>${fmt(ser[i][1])}</b> pop `+(pv?`<b>${ser[i][1]-pv[1]>0?'+':''}${ser[i][1]-pv[1]}</b>`:`<span class="m">(first scan after a gap)</span>`);
@@ -791,17 +797,31 @@ function bindNames(el){ el.querySelectorAll('[data-pl]').forEach(b=>b.onclick=()
 
 // ---------- TOP 10 ----------
 const T10 = window.TOP10 || {};
-const BOARDS=[['offs','Attackers'],['defs','Defenders'],['raiders','Robbers']];
-let board='offs';
+const BOARDS=[['raiders','Robbers'],['offs','Attackers'],['defs','Defenders']];
+const DWIN=[['30m',1800],['4h',4*3600],['24h',86400]];
+const ss=(k,d,ok)=>{ try{ const v=sessionStorage.getItem(k); if(ok(v)) return v; }catch(e){} return d; };
+let board=ss('nt-board','raiders',v=>BOARDS.some(b=>b[0]===v)), dwin=ss('nt-dwin','30m',v=>DWIN.some(b=>b[0]===v));
+function t10Base(){
+  // scan closest to (latest - window); never the latest scan itself
+  const H=(T10.hist||[]).filter(h=>h[0]<T10.ts); if(!H.length) return null;
+  const target=T10.ts-DWIN.find(w=>w[0]===dwin)[1];
+  const best=H.reduce((a,b)=>Math.abs(b[0]-target)<Math.abs(a[0]-target)?b:a);
+  // no scan near the wanted time (bot was off) -> no deltas rather than a misleading one
+  return Math.abs(best[0]-target) <= Math.max(45*60, (T10.ts-target)/4) ? best : 'gap';
+}
 function renderTop10(){
   document.getElementById('t10tabs').innerHTML=BOARDS.map(([k,l])=>`<button type="button" data-b="${k}" aria-pressed="${k===board}">${l}</button>`).join('');
-  document.querySelectorAll('#t10tabs button').forEach(b=>b.onclick=()=>{ board=b.dataset.b; renderTop10(); });
-  const rows=(T10.now||{})[board]||[], prev=new Map(((T10.prev||{})[board]||[]).map(r=>[r[2],r[3]]));
+  document.querySelectorAll('#t10tabs button').forEach(b=>b.onclick=()=>{ board=b.dataset.b; try{sessionStorage.setItem('nt-board',board);}catch(e){} renderTop10(); });
+  const rows=(T10.now||{})[board]||[];
   if(!rows.length){ document.getElementById('t10').innerHTML='<p class="act-empty">No data yet.</p>'; return; }
-  document.getElementById('t10').innerHTML=`<div class="act-sub">scan ${T10.ts?fmtTs(T10.ts):'–'}${T10.prev_ts?' · Δ vs '+fmtTs(T10.prev_ts):''}</div>
-    <table class="t10">${rows.map(([rk,nm,pid,v])=>{ const pv=prev.get(pid), d=pv==null?null:v-pv; const p=byPid.get(pid);
+  const b0=t10Base(), base=b0==='gap'?null:b0, prev=new Map(base?(base[1][board]||[]):[]);
+  const note=b0==='gap'?` · <span title="the tracker was not running then">no scan ${dwin} earlier</span>`:base?' · Δ vs '+fmtTs(base[0]):'';
+  const dbtn=DWIN.map(([k])=>`<button type="button" data-w="${k}" aria-pressed="${k===dwin}">${k}</button>`).join('');
+  document.getElementById('t10').innerHTML=`<div class="t10h"><span class="act-sub">scan ${T10.ts?fmtTs(T10.ts):'–'}${note}</span><span class="seg dw">${dbtn}</span></div>
+    <table class="t10">${rows.map(([rk,nm,pid,v])=>{ const pv=prev.get(pid), d=!base?null:(pv==null?'new':v-pv); const p=byPid.get(pid);
       return `<tr><td class="r" style="width:22px">${rk}.</td><td>${p?`<i class="sw" style="background:${AL[p.al].color};margin-right:5px"></i><button type="button" class="nmb" data-pl="${esc(p.name)}">${esc(nm)}</button>`:esc(nm)}</td>
-      <td class="r">${fmt(v)}</td><td class="d">${d?'+'+fmt(d):''}</td></tr>`; }).join('')}</table>`;
+      <td class="r">${fmt(v)}</td><td class="d">${d==='new'?'<span class="m">new</span>':d?(d>0?'+':'−')+fmt(Math.abs(d)):''}</td></tr>`; }).join('')}</table>`;
+  document.querySelectorAll('#t10 [data-w]').forEach(b=>b.onclick=()=>{ dwin=b.dataset.w; try{sessionStorage.setItem('nt-dwin',dwin);}catch(e){} renderTop10(); });
   bindNames(document.getElementById('t10'));
 }
 
