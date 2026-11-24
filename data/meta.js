@@ -1,1 +1,1 @@
-window.META = {"generated":1795535661,"last_run":{"ts":1795535582,"ok":1,"players":141,"profiles":1,"secs":58.14890432357788,"error":null},"last_ok":1795535582,"first_scan":1795229176,"scans":144,"world":200};
+window.META = {"generated":1795548109,"last_run":{"ts":1795548038,"ok":0,"players":0,"profiles":0,"secs":0.0,"error":"TimeoutError('Locator.wait_for: Timeout 20000ms exceeded.\\nCall log:\\n  - waiting for locator(\"table#player tbody tr\").first to be visible\\n')"},"last_ok":1795535582,"first_scan":1795229176,"scans":144,"world":200};
