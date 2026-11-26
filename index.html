@@ -78,6 +78,7 @@ details[open] .chev{transform:rotate(90deg)}
 .pl .nm{font-weight:600;background:none;border:0;padding:0;color:var(--fg);font-size:.95rem;text-align:left;cursor:pointer;display:inline}
 .pl .nm:hover{text-decoration:underline}
 .pl .sub{font-family:var(--mono);font-size:.7rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.pl .pltribe{font-family:var(--mono);font-size:.68rem;color:var(--muted);margin-left:6px}
 .pl .num{font-family:var(--mono);font-size:.75rem;text-align:right;color:var(--fg);font-variant-numeric:tabular-nums;line-height:1.25}
 .pl .num span{display:block;color:var(--muted);font-size:.68rem}
 .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
@@ -585,8 +586,8 @@ for(const a of ALLIANCES){
     const chips=[];
     (p.arts||[]).forEach(t=>chips.push(`<span class="chip" title="${esc(t.name)} · ${t.bonus} · ${t.scope}"><i class="dia t-${t.tier}"></i>${t.tier} ${KIND_SHORT[t.kind]}</span>`));
     row.innerHTML=`<input type="checkbox" ${state.hiddenPl.has(p.name)?'':'checked'} id="pl-${esc(p.name)}" aria-label="Show ${esc(p.name)}">
-      <div style="min-width:0"><button class="nm" type="button">${esc(p.name)}</button>
-        <div class="sub">${p.tag?esc(p.tag)+' · ':''}${p.tribe||'tribe ?'}</div>
+      <div style="min-width:0"><button class="nm" type="button">${esc(p.name)}</button><span class="pltribe">${p.tribe||'?'}</span>
+        ${p.tag?`<div class="sub">${esc(p.tag)}</div>`:''}
         ${chips.length?`<div class="chips">${chips.join('')}</div>`:''}</div>
       <div class="num">${p.villages.length} vil. · ${fmt(p.pop)}</div>`;
     const pc=row.querySelector('input');
