@@ -237,8 +237,8 @@ const TIER_SCALE = {Unique:3.3, Great:2.8, Small:2.3};
 
 // ---------- MODEL ----------
 const AL = Object.fromEntries(ALLIANCES.map(a=>[a.id,a]));
-const players = PLAYERS.map(([name,al,tribe,vs,tag,pid,first])=>({
-  name, al, tribe, tag, pid, first,
+const players = PLAYERS.map(([name,al,tribe,vs,tag,pid,first,pop])=>({
+  name, al, tribe, tag, pid, first, pop,
   villages: vs.map(([vn,x,y,pop,cap])=>({name:vn,x,y,pop,cap:!!cap}))
 }));
 const allVillages = [];
@@ -250,10 +250,11 @@ ARTIFACTS.forEach(a=>{
   if(v){ v.art = a; (v.player.arts ||= []).push(a); }
 });
 players.forEach(p=>p.arts && p.arts.sort((a,b)=>TIER_ORDER[a.tier]-TIER_ORDER[b.tier]));
-players.forEach(p=>{ p.pop = p.villages.every(v=>v.pop!=null) ? p.villages.reduce((s,v)=>s+v.pop,0) : null; p.home = p.villages.find(v=>v.cap) || p.villages[0]; });
+players.forEach(p=>{ p.home = p.villages.find(v=>v.cap) || p.villages[0]; });
 const tagOf = p => p.tag || AL[p.al].tag;
 
 const state = { hiddenAl:new Set(), hiddenPl:new Set(), focus:null, hoverPl:null, hoverAl:null, hover:null, sel:null, labels:true, arts:true };
+players.forEach(p=>{ if(p.pop!=null && p.pop<500) state.hiddenPl.add(p.name); });
 function visible(p){ return !state.hiddenAl.has(p.al) && !state.hiddenPl.has(p.name); }
 function fmt(n){ return n==null?'–':n.toLocaleString('en-US'); }
 
@@ -472,7 +473,7 @@ function showTip(v,sx,sy){
   let h=`<div class="pn"><i class="sw" style="background:${a.color}"></i>${esc(p.name)}</div>`+
     `<div class="row">${esc(tagOf(p))}${p.tribe?' · '+p.tribe:''}<b>${fmt(p.pop)} pop</b></div>`+
     `<div class="row" style="margin-top:4px;color:var(--fg)">${esc(v.name)}${v.cap?' <span style="color:var(--gold)">(capital)</span>':''}</div>`+
-    `<div class="row">(${v.x}|${v.y})<b>${fmt(v.pop)} inh.</b></div>`;
+    `<div class="row">(${v.x}|${v.y})</div>`;
   if(v.art){ const t=v.art; h+=`<div class="art"><div class="pn" style="font-size:.9rem"><i class="dia t-${t.tier}"></i>${esc(t.name)}</div><div class="row"><span${t.neg?' class="neg"':''}>${esc(t.bonus)}</span><b>${t.scope}</b></div></div>`; }
   tip.innerHTML=h; tip.hidden=false;
   const bw=box.clientWidth, bh=box.clientHeight, tw=tip.offsetWidth, th=tip.offsetHeight;
@@ -583,11 +584,11 @@ for(const a of ALLIANCES){
     const row=document.createElement('div'); row.className='pl'; row.dataset.p=p.name;
     const chips=[];
     (p.arts||[]).forEach(t=>chips.push(`<span class="chip" title="${esc(t.name)} · ${t.bonus} · ${t.scope}"><i class="dia t-${t.tier}"></i>${t.tier} ${KIND_SHORT[t.kind]}</span>`));
-    row.innerHTML=`<input type="checkbox" checked id="pl-${esc(p.name)}" aria-label="Show ${esc(p.name)}">
+    row.innerHTML=`<input type="checkbox" ${state.hiddenPl.has(p.name)?'':'checked'} id="pl-${esc(p.name)}" aria-label="Show ${esc(p.name)}">
       <div style="min-width:0"><button class="nm" type="button">${esc(p.name)}</button>
-        <div class="sub">${p.tag?esc(p.tag)+' · ':''}${p.tribe||'tribe ?'} · ${p.home.cap?'cap':'village'} (${p.home.x}|${p.home.y})</div>
+        <div class="sub">${p.tag?esc(p.tag)+' · ':''}${p.tribe||'tribe ?'}</div>
         ${chips.length?`<div class="chips">${chips.join('')}</div>`:''}</div>
-      <div class="num">${fmt(p.pop)}<span>${p.villages.length} villages</span></div>`;
+      <div class="num">${p.villages.length} vil. · ${fmt(p.pop)}</div>`;
     const pc=row.querySelector('input');
     pc.addEventListener('change',()=>{ pc.checked?state.hiddenPl.delete(p.name):state.hiddenPl.add(p.name); draw(); });
     row.addEventListener('mouseenter',()=>{ state.hoverPl=p.name; draw(); });
