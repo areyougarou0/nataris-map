@@ -1,1 +1,1 @@
-window.META = {"generated":1795741695,"last_run":{"ts":1795741566,"ok":1,"players":148,"profiles":0,"secs":49.20226049423218,"error":null},"last_ok":1795741566,"first_scan":1795229176,"scans":255,"world":200};
+window.META = {"generated":1795743513,"last_run":{"ts":1795743357,"ok":1,"players":148,"profiles":0,"secs":50.189677238464355,"error":null},"last_ok":1795743357,"first_scan":1795229176,"scans":256,"world":200};
